@@ -1,0 +1,42 @@
+pipeline {
+    agent {
+        kubernetes {
+            yamlFile 'kaniko-builder.yaml'
+        }
+    }
+    environment {
+        DOCKERHUB_USERNAME = "junsang3640"
+        IMAGE_NAME         = "conference"
+        RELEASE            = "java-app-1.0.0"
+        IMAGE_TAG          = "${RELEASE}-${BUILD_NUMBER}"
+    }
+    stages{
+
+        stage('Scan') {
+            steps {
+                withSonarQubeEnv(installationName: 'sonar-jenkins') {
+                    sh './mvnw clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar'
+                }
+            }
+        }
+        stage("Build Docker Image & Push to Docker Hub") {
+            steps {
+                container("kaniko") {
+                    script {
+                        def context = "."
+                        def dockerfile = "Dockerfile"
+                        def image = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+                        sh "/kaniko/executor --context ${context} --dockerfile ${dockerfile} --destination ${image}"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "The process is completed."
+        }
+    }
+}
